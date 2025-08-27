@@ -1,132 +1,91 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-// Arrow sequence: Up, Down, Left, Right
-const TARGET_SEQUENCE: ReadonlyArray<string> = [
-  "ArrowUp",
-  "ArrowDown",
-  "ArrowLeft",
-  "ArrowRight",
-] as const;
+const TARGET_SEQUENCE = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 
-type Key = (typeof TARGET_SEQUENCE)[number];
-
-function useKeySequence(target: ReadonlyArray<Key>, onMatch: () => void) {
+export default function App() {
+  const [open, setOpen] = useState(false);
   const bufferRef = useRef<string[]>([]);
 
   useEffect(() => {
-    const handle = (e: KeyboardEvent) => {
+    function handleKeyDown(e: KeyboardEvent) {
       const key = e.key;
-      // Only track arrow keys
-      if (!target.includes(key as Key)) return;
 
+      // Only track arrow keys
+      if (!TARGET_SEQUENCE.includes(key)) return;
+
+      // Add key to buffer
       bufferRef.current.push(key);
-      // Keep buffer the same size as target
-      if (bufferRef.current.length > target.length) {
+
+      // Keep only last 4 keys
+      if (bufferRef.current.length > TARGET_SEQUENCE.length) {
         bufferRef.current.shift();
       }
 
-      // Compare buffers
-      const matched = target.every((k, i) => bufferRef.current[i] === k);
+      // Check match
+      const matched = TARGET_SEQUENCE.every(
+        (k, i) => bufferRef.current[i] === k
+      );
+
       if (matched) {
-        onMatch();
-        bufferRef.current = []; // reset after match
+        setOpen(true); // show popup
+        bufferRef.current = []; // reset
       }
+    }
+
+    // Listen for keys
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
     };
+  }, []);
 
-    window.addEventListener("keydown", handle);
-    return () => window.removeEventListener("keydown", handle);
-  }, [onMatch, target]);
-}
-
-export default function ArrowKeysPopup() {
-  const [open, setOpen] = useState(false);
-  const [lastTriggered, setLastTriggered] = useState<Date | null>(null);
-
-  const onMatch = useMemo(
-    () => () => {
-      setOpen(true);
-      setLastTriggered(new Date());
-    },
-    []
-  );
-
-  useKeySequence(TARGET_SEQUENCE, onMatch);
-
-  // Close on Escape
+  // Close popup on ESC
   useEffect(() => {
-    const onEsc = (e: KeyboardEvent) => {
+    function handleEsc(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
+    }
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
   }, []);
 
   return (
-    <div className="min-h-screen w-full bg-gray-50 text-gray-900 flex items-center justify-center p-6">
-      <div className="max-w-xl w-full">
-        <h1 className="text-2xl font-bold mb-2">Arrow Combo → Popup (TypeScript)</h1>
-        <p className="mb-4">Press <kbd className="px-1 border rounded">↑</kbd> <kbd className="px-1 border rounded">↓</kbd> <kbd className="px-1 border rounded">←</kbd> <kbd className="px-1 border rounded">→</kbd> to open the Git panel. Press <kbd className="px-1 border rounded">Esc</kbd> to close.</p>
+    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+      <h1>Arrow Combo → Popup</h1>
+      <p>Press ↑ ↓ ← → to open the GIF popup. Press Esc to close.</p>
 
-        <div className="rounded-2xl border bg-white p-4 shadow-sm">
-          <h2 className="font-semibold">How it works</h2>
-          <ol className="list-decimal ml-5 mt-2 space-y-1 text-sm text-gray-700">
-            <li>We listen for <code>keydown</code> events on <code>window</code>.</li>
-            <li>We keep a rolling buffer of the last 4 arrow keys.</li>
-            <li>When the buffer matches <code>["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"]</code>, we open a popup.</li>
-          </ol>
-        </div>
-
-        {lastTriggered && (
-          <p className="text-xs text-gray-500 mt-2">Last triggered: {lastTriggered.toLocaleString()}</p>
-        )}
-
-        {/* Popup */}
-        {open && (
+      {open && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-0 z-50 grid place-items-center"
+            style={{
+              background: "white",
+              padding: "1rem",
+              borderRadius: "12px",
+              textAlign: "center",
+            }}
           >
-            <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-            <div className="relative z-10 w-[min(92vw,560px)] rounded-2xl bg-white shadow-xl border p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold">Git Panel</h3>
-                  <p className="text-sm text-gray-600">Quick actions for your repo.</p>
-                </div>
-                <button
-                  onClick={() => setOpen(false)}
-                  className="rounded-xl border px-3 py-1 text-sm hover:bg-gray-50"
-                  aria-label="Close"
-                >
-                  Close
-                </button>
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                <div className="rounded-xl border p-3">
-                  <p className="text-sm font-medium">Clone (HTTPS)</p>
-                  <code className="block text-xs mt-1 break-all">
-                    git clone https://github.com/your-user/your-repo.git
-                  </code>
-                </div>
-                <div className="rounded-xl border p-3">
-                  <p className="text-sm font-medium">Init + First Commit</p>
-                  <code className="block text-xs mt-1 whitespace-pre-wrap break-all">
-                    {`git init\ngit add .\ngit commit -m "first commit"\ngit branch -M main\ngit remote add origin https://github.com/your-user/your-repo.git\ngit push -u origin main`}
-                  </code>
-                </div>
-                <div className="rounded-xl border p-3">
-                  <p className="text-sm font-medium">Common</p>
-                  <code className="block text-xs mt-1 whitespace-pre-wrap break-all">
-                    {`git pull\ngit checkout -b feature/arrow-popup\ngit add -A && git commit -m "feat: arrow popup" && git push`}
-                  </code>
-                </div>
-              </div>
-            </div>
+            <h2>🎉 You unlocked the GIF!</h2>
+            <img
+              src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdmpuY3dvYjh2N3o1Y2VtOHl4eG16cDgzMmE5dHB1a3JqZWk5bnEwMSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/MDJ9IbxxvDUQM/giphy.gif        "
+              alt="fun gif"
+              style={{ maxWidth: "300px", borderRadius: "8px" }}
+            />
+            <br />
+            <button onClick={() => setOpen(false)} style={{ marginTop: "1rem" }}>
+              Close
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
